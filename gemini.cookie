@@ -1,0 +1,12 @@
+// if using gemini, remove this comment and put in the cookie values in the "" values
+
+[
+   {
+      "name":"__Secure-1PSID",
+      "value":""
+   },
+   {
+      "name":"__Secure-1PSIDTS",
+      "value":""
+   }
+]
