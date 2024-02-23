@@ -1,0 +1,4 @@
+clyde.py
+clyde-venv/
+.env
+nohup.out
