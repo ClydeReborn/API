@@ -62,8 +62,8 @@ async def get_gpt():
                 # fetch with g4f (best provider: GeminiProChat)
                 ai = g4f_provider()
                 response = ai.chat.completions.create(
-                    model="gemini-pro",
-                    provider=g4f.Provider.FreeChatgpt,
+                    model="gpt-3.5-turbo",
+                    provider=g4f.Provider.Aura,
                     messages=[
                         #    {"role": "user", "content": request.json.get("prompt")},
                         {
