@@ -48,22 +48,23 @@ async def get_gpt():
     errors = []
     # this must be set to either g4f or tgpt, using other values will trigger a TypeError
     mode = request.json.get("type") or ""
+    disabled_modes = ["g4f"]
 
     # to combat instability, quit only if there were more than 5 errors while fetching
     for i in range(5):
         logging.info(f"Fetching response... ({i+1}/5)")  # pylint: disable=W1203
 
         try:
-            if mode == "tgpt":
+            if mode == "tgpt" and not mode in disabled_modes:
                 # fetch with tgpt (best provider: Phind)
                 ai = tgpt_provider.PHIND(max_tokens=400, timeout=None)
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
-            elif mode == "g4f":
+            elif mode == "g4f" and not mode in disabled_modes:
                 # fetch with g4f (best provider: GeminiProChat)
                 ai = g4f_provider()
                 response = ai.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    provider=g4f.Provider.Aura,
+                    model="gemini-pro",
+                    provider=g4f.Provider.GeminiProChat,
                     messages=[
                         #    {"role": "user", "content": request.json.get("prompt")},
                         {
@@ -78,8 +79,8 @@ async def get_gpt():
 
                 gpt_message = response.choices[0].message.content
             else:
-                logging.warning("Discarding invalid options")
-                raise TypeError("Invalid provider library provided")
+                logging.warning("Discarding unavailable options")
+                raise TypeError("Unavailable provider library provided")
         except Exception as e:
             # log a general error and retry
             if "429" in str(e):
