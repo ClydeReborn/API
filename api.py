@@ -2,9 +2,10 @@ import sys
 import logging
 
 import g4f
-import pytgpt.phind as provider
-import nest_asyncio
+import pytgpt.phind as tgpt_provider
+from g4f.client import Client as g4f_provider
 
+import nest_asyncio
 from flask import Flask, request, jsonify, redirect
 
 # patch nested event loops
@@ -55,13 +56,14 @@ async def get_gpt():
         try:
             if mode == "tgpt":
                 # fetch with tgpt (best provider: Phind)
-                ai = provider.PHIND(max_tokens=400, timeout=None)
+                ai = tgpt_provider.PHIND(max_tokens=400, timeout=None)
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             elif mode == "g4f":
                 # fetch with g4f (best provider: GeminiProChat)
-                gpt_message = g4f.ChatCompletion.create(
+                ai = g4f_provider()
+                response = ai.chat.completions.create(
                     model="gemini-pro",
-                    provider=g4f.Provider.GeminiProChat,
+                    provider=g4f.Provider.FreeChatgpt,
                     messages=[
                         #    {"role": "user", "content": request.json.get("prompt")},
                         {
@@ -73,6 +75,8 @@ async def get_gpt():
                     timeout=None,  # disable timeout incase the api is slow (llama2 moment)
                     max_tokens=400,  # limit the output to 2000 or less characters
                 )
+
+                gpt_message = response.choices[0].message.content
             else:
                 logging.warning("Discarding invalid options")
                 raise TypeError("Invalid provider library provided")
