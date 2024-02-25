@@ -82,6 +82,9 @@ async def get_gpt():
                 raise TypeError("Invalid provider library provided")
         except Exception as e:
             # log a general error and retry
+            if "429" in str(e):
+                logging.warning("We are being ratelimited.")
+                break
             logging.warning(f"An exception occurred: {e.__class__.__name__}: {str(e)}")  # pylint: disable=W1203
             errors.append(f"{e.__class__.__name__}: {str(e)}")
             continue
@@ -89,7 +92,7 @@ async def get_gpt():
         if gpt_message == "":
             # log a blank message error and retry
             logging.warning("No message was returned")
-            errors.append("No message was returned")
+            errors.append("RuntimeError: No message was returned")
             continue
 
         # return the ai response
@@ -106,10 +109,10 @@ async def get_gpt():
         ), 200
 
     # log the failure and quit fetching, send error back to the bot
-    logging.error("Could not fetch message due to the errors above")
+    logging.error("Could not fetch message due to previously encountered issues")
     return jsonify(
         {
-            "error": "5 attempts were made, and the fetching was unsuccessful. Your provider may be broken.",
+            "error": "Unable to fetch AI response. Possible reasons may include ratelimits, CAPTCHAs, or a broken provider.",
             "errors": errors,
             "code": 1,
         }
