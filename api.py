@@ -82,7 +82,7 @@ async def get_gpt():
             errors.append(f"{e.__class__.__name__}: {str(e)}")
             continue
 
-        if not gpt_message:
+        if gpt_message == "":
             # log a blank message error and retry
             logging.warning("No message was returned")
             errors.append("No message was returned")
