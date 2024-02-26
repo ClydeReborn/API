@@ -2,8 +2,8 @@ import sys
 import logging
 
 import g4f
-import pytgpt.phind as tgpt_provider
-from g4f.client import Client as g4f_provider
+import pytgpt.phind as phind
+from g4f.client import Client
 
 import nest_asyncio
 from flask import Flask, request, jsonify, redirect
@@ -57,23 +57,20 @@ async def get_gpt():
         try:
             if mode == "tgpt" and not mode in disabled_modes:
                 # fetch with tgpt (best provider: Phind)
-                ai = tgpt_provider.PHIND(max_tokens=400, timeout=None)
+                ai = phind.PHIND(max_tokens=400, timeout=None)
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             elif mode == "g4f" and not mode in disabled_modes:
                 # fetch with g4f (best provider: GeminiProChat)
-                ai = g4f_provider()
+                ai = Client()
                 response = ai.chat.completions.create(
-                    model="gemini-pro",
-                    provider=g4f.Provider.GeminiProChat,
+                    model="gpt-3.5-turbo",
+                    provider=g4f.Provider.FlowGpt,  # may get ratelimited
                     messages=[
-                        #    {"role": "user", "content": request.json.get("prompt")},
-                        {
-                            "role": "user",
-                            "content": system_prompt + request.json.get("prompt"),
-                        }
-                        #    {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": request.json.get("prompt")},
+                        # {"role": "user", "content": system_prompt + request.json.get("prompt")},
+                        {"role": "system", "content": system_prompt},
                     ],
-                    timeout=None,  # disable timeout incase the api is slow (llama2 moment)
+                    timeout=10,  # limit time taken for clyde to respond to a max of 50 seconds
                     max_tokens=400,  # limit the output to 2000 or less characters
                 )
 
@@ -85,6 +82,7 @@ async def get_gpt():
             # log a general error and retry
             if "429" in str(e):
                 logging.warning("We are being ratelimited.")
+                errors.append(f"RuntimeError: Ratelimited")
                 break
             logging.warning(f"An exception occurred: {e.__class__.__name__}: {str(e)}")  # pylint: disable=W1203
             errors.append(f"{e.__class__.__name__}: {str(e)}")
