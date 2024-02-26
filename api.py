@@ -48,7 +48,7 @@ async def get_gpt():
     errors = []
     # this must be set to either g4f or tgpt, using other values will trigger a TypeError
     mode = request.json.get("type") or ""
-    disabled_modes = ["g4f"]
+    disabled_modes = []
 
     # to combat instability, quit only if there were more than 5 errors while fetching
     for i in range(5):
