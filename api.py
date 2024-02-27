@@ -63,7 +63,7 @@ async def get_gpt():
                 # fetch with g4f (best provider: GeminiProChat)
                 ai = Client()
                 response = ai.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gemini-pro",
                     provider=g4f.Provider.FlowGpt,  # may get ratelimited
                     messages=[
                         {"role": "user", "content": request.json.get("prompt")},
