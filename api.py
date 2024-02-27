@@ -1,9 +1,8 @@
 import sys
 import logging
 
-import g4f
 import pytgpt.phind as phind
-from g4f.client import Client
+import pytgpt.gpt4free as g4f
 
 import nest_asyncio
 from flask import Flask, request, jsonify, redirect
@@ -57,24 +56,12 @@ async def get_gpt():
         try:
             if mode == "tgpt" and not mode in disabled_modes:
                 # fetch with tgpt (best provider: Phind)
-                ai = phind.PHIND(max_tokens=400, timeout=None)
+                ai = phind.PHIND(max_tokens=400, timeout=10)
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             elif mode == "g4f" and not mode in disabled_modes:
-                # fetch with g4f (best provider: GeminiProChat)
-                ai = Client()
-                response = ai.chat.completions.create(
-                    model="gemini-pro",
-                    provider=g4f.Provider.FlowGpt,  # may get ratelimited
-                    messages=[
-                        # {"role": "user", "content": request.json.get("prompt")},
-                        {"role": "user", "content": system_prompt + request.json.get("prompt")},
-                        # {"role": "system", "content": system_prompt},
-                    ],
-                    timeout=10,  # limit time taken for clyde to respond to a max of 50 seconds
-                    max_tokens=400,  # limit the output to 2000 or less characters
-                )
-
-                gpt_message = response.choices[0].message.content
+                # fetch with g4f (best provider: FlowGpt)
+                ai = g4f.GPT4FREE(max_tokens=400, timeout=10, provider="FlowGpt", model="gemini-pro", chat_completion=True)
+                gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             else:
                 logging.warning("Discarding unavailable options")
                 raise TypeError("Unavailable provider library provided")
