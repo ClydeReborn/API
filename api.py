@@ -66,9 +66,9 @@ async def get_gpt():
                     model="gemini-pro",
                     provider=g4f.Provider.FlowGpt,  # may get ratelimited
                     messages=[
-                        {"role": "user", "content": request.json.get("prompt")},
-                        # {"role": "user", "content": system_prompt + request.json.get("prompt")},
-                        {"role": "system", "content": system_prompt},
+                        # {"role": "user", "content": request.json.get("prompt")},
+                        {"role": "user", "content": system_prompt + request.json.get("prompt")},
+                        # {"role": "system", "content": system_prompt},
                     ],
                     timeout=10,  # limit time taken for clyde to respond to a max of 50 seconds
                     max_tokens=400,  # limit the output to 2000 or less characters
