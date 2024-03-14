@@ -1,6 +1,5 @@
 import sys
 import logging
-import warnings
 
 import g4f
 from g4f.client import Client
@@ -69,7 +68,7 @@ async def get_gpt():
         logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
 
         try:
-            if mode == "tgpt" and not mode in disabled_modes:
+            if mode == "tgpt" and mode not in disabled_modes:
                 # fetch with tgpt (best provider: Phind)
                 ai = gpt4free.GPT4FREE(
                     intro=system_prompt,
@@ -80,7 +79,7 @@ async def get_gpt():
                     chat_completion=True,
                 )
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
-            elif mode == "g4f" and not mode in disabled_modes:
+            elif mode == "g4f" and mode not in disabled_modes:
                 # fetch with g4f (best provider: ChatgptNext, im not sure what about the 429 error)
                 ai = Client()
 
