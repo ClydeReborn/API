@@ -1,8 +1,10 @@
 import sys
 import logging
+import warnings
 
-import pytgpt.phind as phind
-import pytgpt.gpt4free as g4f
+import g4f
+from g4f.client import Client
+from pytgpt import gpt4free
 
 import nest_asyncio
 from flask import Flask, request, jsonify, redirect
@@ -13,6 +15,14 @@ nest_asyncio.apply()
 logging.basicConfig(
     stream=sys.stderr, level=logging.INFO, format="%(levelname)s - %(message)s"
 )
+
+
+def get_model(provider: g4f.Provider) -> str:
+    try:
+        return provider.default_model
+    except AttributeError:
+        return "gpt-3.5-turbo"
+
 
 # define the api and variables
 app = Flask("ClydeAPI")
@@ -49,36 +59,55 @@ async def get_gpt():
     mode = request.json.get("type") or ""
     disabled_modes = []
 
-    # to combat instability, quit only if there were more than 5 errors while fetching
-    for i in range(5):
-        logging.info(f"Fetching response... ({i+1}/5)")  # pylint: disable=W1203
+    providers = [
+        g4f.Provider.ProviderUtils.convert[p] for p in g4f.Provider.__all__ if p not in ["_", "Bing"]
+    ]
+    ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
+
+    # to combat instability, try all providers individually
+    for provider in ok:
+        logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
 
         try:
             if mode == "tgpt" and not mode in disabled_modes:
                 # fetch with tgpt (best provider: Phind)
-                ai = phind.PHIND(max_tokens=400, timeout=10)
+                ai = gpt4free.GPT4FREE(
+                    intro=system_prompt,
+                    max_tokens=400,
+                    timeout=None,
+                    provider=provider.__name__,
+                    model=get_model(provider),
+                    chat_completion=True,
+                )
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             elif mode == "g4f" and not mode in disabled_modes:
-                # fetch with g4f (best provider: FlowGpt)
-                ai = g4f.GPT4FREE(max_tokens=400, timeout=10, provider="FlowGpt", model="gemini-pro", chat_completion=True)
-                gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
+                # fetch with g4f (best provider: ChatgptNext, im not sure what about the 429 error)
+                ai = Client()
+
+                response = ai.chat.completions.create(
+                    model=get_model(provider),
+                    provider=provider.__name__,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": request.json.get("prompt")},
+                    ],
+                )
+
+                gpt_message = response.choices[0].message.content
             else:
                 logging.warning("Discarding unavailable options")
                 raise TypeError("Unavailable provider library provided")
+
+            if not gpt_message:
+                raise RuntimeError("No message was returned")
+
+            if "[GoogleGenerativeAI Error]" in gpt_message:
+                raise RuntimeError("Gemini Pro did not work")
+
         except Exception as e:
             # log a general error and retry
-            if "429" in str(e):
-                logging.warning("We are being ratelimited.")
-                errors.append(f"RuntimeError: Ratelimited")
-                break
             logging.warning(f"An exception occurred: {e.__class__.__name__}: {str(e)}")  # pylint: disable=W1203
             errors.append(f"{e.__class__.__name__}: {str(e)}")
-            continue
-
-        if gpt_message == "":
-            # log a blank message error and retry
-            logging.warning("No message was returned")
-            errors.append("RuntimeError: No message was returned")
             continue
 
         # return the ai response
