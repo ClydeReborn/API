@@ -101,7 +101,10 @@ async def get_gpt():
                 raise RuntimeError("No message was returned")
 
             if "[GoogleGenerativeAI Error]" in gpt_message:
-                raise RuntimeError("Gemini Pro did not work")
+                raise RuntimeError(f"{provider.__name__} did not work")
+
+            if "当前地区当日额度已消耗完, 请尝试更换网络环境" in gpt_message:
+                raise RuntimeError(f"{provider.__name__} quota is exhausted")
 
         except Exception as e:
             # log a general error and retry
