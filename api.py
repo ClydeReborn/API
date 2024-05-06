@@ -42,12 +42,16 @@ async def root():
 @app.post("/gpt")
 async def get_gpt():
     try:
-        response = httpx.post("http://127.0.0.1:11434/api/generate", json={
-            "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
-            "template": f"FROM llama3\nPARAMETER num_ctx 400\nSYSTEM system_prompt",
-            "prompt": request.json.get("prompt")
-        }, timeout=None)
-    
+        response = httpx.post(
+            "http://127.0.0.1:11434/api/generate",
+            json={
+                "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
+                "template": f"FROM llama3\nPARAMETER num_ctx 400\nSYSTEM system_prompt",
+                "prompt": request.json.get("prompt"),
+            },
+            timeout=None,
+        )
+
         gpt_message = ""
         response_json = response.text.split("\n")
         for doc in response_json:
@@ -56,17 +60,16 @@ async def get_gpt():
                 gpt_message += json_doc["response"]
             else:
                 break
-            
+
         if not gpt_message:
             raise RuntimeError("No message was returned")
-    
+
         # return the ai response
         logging.info("Message fetched successfully")
         return jsonify(
             {
                 # splitting is designed for behavior of llama2's conversation features, may not split correctly in some edge cases
-                "message": gpt_message
-                .lower()
+                "message": gpt_message.lower()
                 .split("user: ", 1)[0]
                 .replace("clyde: ", ""),
                 "code": 0,
