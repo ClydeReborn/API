@@ -41,7 +41,7 @@ async def root():
 @app.post("/gpt")
 async def get_gpt():
     try:
-        response = httpx.get("http://127.0.0.1:11434/api/generate", json={
+        response = httpx.post("http://127.0.0.1:11434/api/generate", json={
             "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
             "template": f"FROM llama3\nPARAMETER num_ctx 400\nSYSTEM system_prompt",
             "prompt": request.json.get("prompt")
