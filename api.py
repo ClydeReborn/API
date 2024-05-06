@@ -2,6 +2,7 @@ import sys
 import logging
 
 import httpx
+import ujson as json
 
 from flask import Flask, request, jsonify, redirect
 
@@ -45,7 +46,7 @@ async def get_gpt():
             "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
             "template": f"FROM llama3\nPARAMETER num_ctx 400\nSYSTEM system_prompt",
             "prompt": request.json.get("prompt")
-        })
+        }, timeout=None)
     
         gpt_message = ""
         response_json = response.text.split("\n")
