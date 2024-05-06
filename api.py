@@ -1,27 +1,14 @@
 import sys
 import logging
 
-import g4f
-from g4f.client import Client
-from pytgpt import gpt4free
+import httpx
 
-import nest_asyncio
 from flask import Flask, request, jsonify, redirect
 
-# patch nested event loops
-nest_asyncio.apply()
 # enable logging to stderr, in case you're running clyde via pm2
 logging.basicConfig(
     stream=sys.stderr, level=logging.INFO, format="%(levelname)s - %(message)s"
 )
-
-
-def get_model(provider: g4f.Provider) -> str:
-    try:
-        return provider.default_model
-    except AttributeError:
-        return "gpt-3.5-turbo"
-
 
 # define the api and variables
 app = Flask("ClydeAPI")
@@ -53,87 +40,47 @@ async def root():
 # route for fetching ai responses
 @app.post("/gpt")
 async def get_gpt():
-    errors = []
-    # this must be set to either g4f or tgpt, using other values will trigger a TypeError
-    mode = request.json.get("type") or ""
-    disabled_modes = []
-
-    providers = [
-        g4f.Provider.ProviderUtils.convert[p] for p in g4f.Provider.__all__ if p not in ["_", "Bing"]
-    ]
-    ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
-
-    # to combat instability, try all providers individually
-    for provider in ok:
-        logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
-
-        try:
-            if mode == "tgpt" and mode not in disabled_modes:
-                # fetch with tgpt (best provider: Phind)
-                ai = gpt4free.GPT4FREE(
-                    intro=system_prompt,
-                    max_tokens=400,
-                    timeout=None,
-                    provider=provider.__name__,
-                    model=get_model(provider),
-                    chat_completion=True,
-                )
-                gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
-            elif mode == "g4f" and mode not in disabled_modes:
-                # fetch with g4f (best provider: ChatgptNext, im not sure what about the 429 error)
-                ai = Client()
-
-                response = ai.chat.completions.create(
-                    model=get_model(provider),
-                    provider=provider.__name__,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": request.json.get("prompt")},
-                    ],
-                )
-
-                gpt_message = response.choices[0].message.content
+    try:
+        response = httpx.get("http://127.0.0.1:11434/api/generate", json={
+            "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
+            "template": f"FROM llama3\nPARAMETER num_ctx 400\nSYSTEM system_prompt",
+            "prompt": request.json.get("prompt")
+        })
+    
+        gpt_message = ""
+        response_json = response.text.split("\n")
+        for doc in response_json:
+            json_doc = json.loads(doc)
+            if not json_doc["done"]:
+                gpt_message += json_doc["response"]
             else:
-                logging.warning("Discarding unavailable options")
-                raise TypeError("Unavailable provider library provided")
-
-            if not gpt_message:
-                raise RuntimeError("No message was returned")
-
-            if "[GoogleGenerativeAI Error]" in gpt_message:
-                raise RuntimeError(f"{provider.__name__} did not work")
-
-            if "当前地区当日额度已消耗完, 请尝试更换网络环境" in gpt_message:
-                raise RuntimeError(f"{provider.__name__} quota is exhausted")
-
-        except Exception as e:
-            # log a general error and retry
-            logging.warning(f"An exception occurred: {e.__class__.__name__}: {str(e)}")  # pylint: disable=W1203
-            errors.append(f"{e.__class__.__name__}: {str(e)}")
-            continue
-
+                break
+            
+        if not gpt_message:
+            raise RuntimeError("No message was returned")
+    
         # return the ai response
         logging.info("Message fetched successfully")
         return jsonify(
             {
                 # splitting is designed for behavior of llama2's conversation features, may not split correctly in some edge cases
-                "message": "".join(list(gpt_message))
+                "message": gpt_message
                 .lower()
                 .split("user: ", 1)[0]
                 .replace("clyde: ", ""),
                 "code": 0,
             }
         ), 200
-
-    # log the failure and quit fetching, send error back to the bot
-    logging.error("Could not fetch message due to previously encountered issues")
-    return jsonify(
-        {
-            "error": "Unable to fetch AI response. Possible reasons may include ratelimits, CAPTCHAs, or a broken provider.",
-            "errors": errors,
-            "code": 1,
-        }
-    ), 500
+    except Exception as e:
+        # log the failure and quit fetching, send error back to the bot
+        logging.error("Could not fetch message due to previously encountered issues")
+        return jsonify(
+            {
+                "error": "Unable to fetch local AI response, please start Ollama.",
+                "errors": [f"{e.__class__.__name__}: {str(e)}"],
+                "code": 1,
+            }
+        ), 500
 
 
 # run server at port 8001, debug mode to get hot-reloading without conflicts
