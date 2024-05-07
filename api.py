@@ -46,7 +46,7 @@ async def get_gpt():
             "http://127.0.0.1:11434/api/generate",
             json={
                 "model": "llama3",  # use llama3 for the most cutting-edge, llama2-uncensored for freeness, llava for image support
-                "prompt": f"[INST]\n<<SYS>>\n{system_prompt}\n<</SYS>>\n\n{request.json.get('prompt')}[/INST]",
+                "prompt": f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n{request.json.get('prompt')}[/INST]",
             },
             timeout=None,
         )
