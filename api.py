@@ -58,10 +58,14 @@ async def get_gpt():
     mode = request.json.get("type") or ""
     disabled_modes = []
 
-    providers = [
-        g4f.Provider.ProviderUtils.convert[p] for p in g4f.Provider.__all__ if p not in ["_", "Bing"]
-    ]
-    ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
+    # uncomment to use any available provider
+    # providers = [
+    #    g4f.Provider.ProviderUtils.convert[p] for p in g4f.Provider.__all__ if p not in ["_", "Bing"]
+    # ]
+    # ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
+
+    # date tested: 21.07.2024
+    ok = ["GeminiProChat", "FreeChatgpt", "HuggingChat"]
 
     # to combat instability, try all providers individually
     for provider in ok:
@@ -80,7 +84,7 @@ async def get_gpt():
                 )
                 gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
             elif mode == "g4f" and mode not in disabled_modes:
-                # fetch with g4f (best provider: ChatgptNext, im not sure what about the 429 error)
+                # fetch with g4f (best providers: GeminiProChat, HuggingChat)
                 ai = Client()
 
                 response = ai.chat.completions.create(
