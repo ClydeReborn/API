@@ -63,9 +63,10 @@ async def get_gpt():
     # ]
     # ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
 
-    # date tested: 21.07.2024
-    ok = [g4f.Provider.GeminiProChat, g4f.Provider.FreeChatgpt, g4f.Provider.HuggingChat]
-
+    # date tested: 18.09.2024
+    ok = [g4f.Provider.ChatGot, g4f.Provider.HuggingChat, g4f.Providers.FreeChatgpt]
+    img_ok = [g4f.Provider.Prodia, g4f.Provider.ReplicateHome]
+    
     # to combat instability, try all providers individually
     for provider in ok:
         logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
