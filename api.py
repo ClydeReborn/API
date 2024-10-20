@@ -66,7 +66,7 @@ async def get_gpt():
     # ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
 
     # date tested: 18.09.2024
-    ok = [g4f.Provider.ChatGot, g4f.Provider.HuggingChat, g4f.Providers.FreeChatgpt]
+    ok = [g4f.Provider.ChatGot, g4f.Provider.HuggingChat, g4f.Provider.FreeChatgpt]
     img_ok = [g4f.Provider.Prodia, g4f.Provider.ReplicateHome]
     
     # to combat instability, try all providers individually
@@ -106,7 +106,7 @@ async def get_gpt():
                     model_name="gemini-1.5-pro-002",  # Using Gemini 1.5 Pro model
                     system_instruction=system_prompt
                 )
-                response = model.generate_content("hi who are you?")
+                response = model.generate_content(request.json.get("prompt"))
 
                 gpt_message = response.text
             
