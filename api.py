@@ -1,7 +1,9 @@
+import os
 import sys
 import logging
 
 import g4f
+import google.generativeai as genai
 from g4f.client import Client
 from pytgpt import gpt4free
 
@@ -97,6 +99,17 @@ async def get_gpt():
                 )
 
                 gpt_message = response.choices[0].message.content
+            elif mode == "gemini" and mode not in disabled_modes:
+                genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+                model = genai.GenerativeModel(
+                    model_name="gemini-1.5-pro-002",  # Using Gemini 1.5 Pro model
+                    system_instruction=system_prompt
+                )
+                response = model.generate_content("hi who are you?")
+
+                gpt_message = response.text
+            
             else:
                 logging.warning("Discarding unavailable options")
                 raise TypeError("Unavailable provider library provided")
