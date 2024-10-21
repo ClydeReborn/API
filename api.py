@@ -1,11 +1,16 @@
 import os
 import sys
+import io
 import logging
 
 import g4f
 import google.generativeai as genai
 from g4f.client import Client
 from pytgpt import gpt4free
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+import requests
+from PIL import Image
 
 import nest_asyncio
 from flask import Flask, request, jsonify, redirect
@@ -68,7 +73,7 @@ async def get_gpt():
     # date tested: 18.09.2024
     ok = [g4f.Provider.ChatGot, g4f.Provider.HuggingChat, g4f.Provider.FreeChatgpt]
     img_ok = [g4f.Provider.Prodia, g4f.Provider.ReplicateHome]
-    
+
     # to combat instability, try all providers individually
     for provider in ok:
         logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
@@ -104,12 +109,28 @@ async def get_gpt():
 
                 model = genai.GenerativeModel(
                     model_name="gemini-1.5-pro-002",  # Using Gemini 1.5 Pro model
-                    system_instruction=system_prompt
+                    system_instruction=system_prompt,
                 )
-                response = model.generate_content(request.json.get("prompt"))
+
+                if request.json.get("image"):
+                    image_res = requests.get(request.json.get("image"))
+                    image = Image.open(io.BytesIO(image_res.content))
+                
+                    prompt = [request.json.get("prompt"), image]
+                else:
+                    prompt = request.json.get("prompt")
+                    
+                response = model.generate_content(
+                    request.json.get("prompt"),
+                    safety_settings={
+                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                    },
+                )
 
                 gpt_message = response.text
-            
             else:
                 logging.warning("Discarding unavailable options")
                 raise TypeError("Unavailable provider library provided")
@@ -120,7 +141,7 @@ async def get_gpt():
             if "[GoogleGenerativeAI Error]" in gpt_message:
                 raise RuntimeError(f"{provider.__name__} did not work")
 
-            if "当前地区当日额度已消耗完, 请尝试更换网络环境" in gpt_message:
+            if "当前地区当日额度已消耗完, 请尝试更换网络环境" in gpt_message:
                 raise RuntimeError(f"{provider.__name__} quota is exhausted")
 
         except Exception as e:
