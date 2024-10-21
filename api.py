@@ -121,7 +121,7 @@ async def get_gpt():
                     prompt = request.json.get("prompt")
                     
                 response = model.generate_content(
-                    request.json.get("prompt"),
+                    prompt,
                     safety_settings={
                         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
