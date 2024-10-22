@@ -9,7 +9,7 @@ from g4f.client import Client
 from pytgpt import gpt4free
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-import requests
+import httpx
 from PIL import Image
 
 import nest_asyncio
@@ -113,7 +113,7 @@ async def get_gpt():
                 )
 
                 if request.json.get("image"):
-                    image_res = requests.get(request.json.get("image"))
+                    image_res = httpx.get(request.json.get("image"))
                     image = Image.open(io.BytesIO(image_res.content))
                 
                     prompt = [request.json.get("prompt"), image]
