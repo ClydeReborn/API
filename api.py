@@ -3,10 +3,7 @@ import sys
 import io
 import logging
 
-import g4f
-import google.generativeai as genai
-from g4f.client import Client
-from pytgpt import gpt4free
+from google.generativeai import GenerativeModel
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 import httpx
@@ -17,24 +14,18 @@ from flask import Flask, request, jsonify, redirect
 
 # patch nested event loops
 nest_asyncio.apply()
-# enable logging to stderr, in case you're running clyde via pm2
+# enable logging to stderr, in case you're running Clyde via pm2
 logging.basicConfig(
     stream=sys.stderr, level=logging.INFO, format="%(levelname)s - %(message)s"
 )
 
-
-def get_model(provider: g4f.Provider) -> str:
-    try:
-        return provider.default_model
-    except AttributeError:
-        return "gpt-3.5-turbo"
-
-
 # define the api and variables
 app = Flask("ClydeAPI")
+user_histories = {}  # Store history for each UID
+
 system_prompt = (
-    "You are named Lunal and are currently chatting in a Discord server. "  # rename Clyde here
-    "You are friendly, warm and farcical. "
+    "You are named Lunal and are currently chatting in a Discord server. "
+    "You are friendly, warm, and farcical. "
     "You must always be extremely concise. "
     "If the user is chatting casually, "
     "your responses must be less than 1 sentence, "
@@ -49,131 +40,83 @@ system_prompt = (
     "Do not refer to yourself as a bot, AI Assistant, or any equivalent term. "
 )
 
-
 # funny redirect instead of a 404 not found
 @app.get("/")
 async def root():
     return redirect("https://www.urbandictionary.com/ChatGPT")
 
-
-# route for fetching ai responses
+# route for fetching AI responses
 @app.post("/gpt")
 async def get_gpt():
-    errors = []
-    # this must be set to either g4f or tgpt, using other values will trigger a TypeError
-    mode = request.json.get("type") or ""
-    disabled_modes = []
+    genai_api_key = os.getenv("GEMINI_API_KEY")
+    if not genai_api_key:
+        return jsonify({"error": "Gemini hasn't been set up.", "code": 2}), 500
 
-    # uncomment to use any available provider
-    # providers = [
-    #    g4f.Provider.ProviderUtils.convert[p] for p in g4f.Provider.__all__ if p not in ["_", "Bing"]
-    # ]
-    # ok = [p for p in providers if all([p.working, not p.needs_auth, p.supports_stream])]
+    uid = request.json.get("uid")  # Unique ID for the user
+    user_prompt = request.json.get("prompt", "")
 
-    # date tested: 18.09.2024
-    ok = [g4f.Provider.ChatGot, g4f.Provider.HuggingChat, g4f.Provider.FreeChatgpt]
-    img_ok = [g4f.Provider.Prodia, g4f.Provider.ReplicateHome]
+    # Initialize or update the history for the user
+    if uid not in user_histories:
+        user_histories[uid] = []
+    user_histories[uid].append(user_prompt)
 
-    # to combat instability, try all providers individually
-    for provider in ok:
-        logging.info(f"Fetching response at {provider.__name__}...")  # pylint: disable=W1203
+    # Limit history length to manage memory usage
+    if len(user_histories[uid]) > 10:  # keep the last 10 messages only
+        user_histories[uid] = user_histories[uid][-10:]
 
-        try:
-            if mode == "tgpt" and mode not in disabled_modes:
-                # fetch with tgpt (best provider: Phind)
-                ai = gpt4free.GPT4FREE(
-                    intro=system_prompt,
-                    max_tokens=400,
-                    timeout=None,
-                    provider=provider.__name__,
-                    model=get_model(provider),
-                    chat_completion=True,
-                )
-                gpt_message = ai.chat(system_prompt + request.json.get("prompt"))
-            elif mode == "g4f" and mode not in disabled_modes:
-                # fetch with g4f (best providers: GeminiProChat, HuggingChat)
-                ai = Client()
+    # Combine system prompt and user history
+    combined_prompt = system_prompt + " ".join(user_histories[uid])
 
-                response = ai.chat.completions.create(
-                    model=get_model(provider),
-                    provider=provider.__name__,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": request.json.get("prompt")},
-                    ],
-                )
+    try:
+        # configure and fetch response with Gemini
+        genai.configure(api_key=genai_api_key)
 
-                gpt_message = response.choices[0].message.content
-            elif mode == "gemini" and mode not in disabled_modes:
-                genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        model = GenerativeModel(
+            model_name="gemini-1.5-flash-002",
+            system_instruction=system_prompt,
+        )
 
-                model = genai.GenerativeModel(
-                    model_name="gemini-1.5-pro-002",  # Using Gemini 1.5 Pro model
-                    system_instruction=system_prompt,
-                )
+        if request.json.get("image"):
+            image_res = httpx.get(request.json.get("image"))
+            image = Image.open(io.BytesIO(image_res.content))
+            prompt = [combined_prompt, image]
+        else:
+            prompt = combined_prompt
 
-                if request.json.get("image"):
-                    image_res = httpx.get(request.json.get("image"))
-                    image = Image.open(io.BytesIO(image_res.content))
-                
-                    prompt = [request.json.get("prompt"), image]
-                else:
-                    prompt = request.json.get("prompt")
-                    
-                response = model.generate_content(
-                    prompt,
-                    safety_settings={
-                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                    },
-                )
+        response = model.generate_content(
+            prompt,
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            },
+        )
 
-                gpt_message = response.text
-            else:
-                logging.warning("Discarding unavailable options")
-                raise TypeError("Unavailable provider library provided")
+        gpt_message = response.text
 
-            if not gpt_message:
-                raise RuntimeError("No message was returned")
+        if not gpt_message:
+            raise RuntimeError("Gemini isn't available at the moment.")
 
-            if "[GoogleGenerativeAI Error]" in gpt_message:
-                raise RuntimeError(f"{provider.__name__} did not work")
+        # Append AI response to user's history for context in the next interaction
+        user_histories[uid].append(gpt_message)
 
-            if "当前地区当日额度已消耗完, 请尝试更换网络环境" in gpt_message:
-                raise RuntimeError(f"{provider.__name__} quota is exhausted")
-
-        except Exception as e:
-            # log a general error and retry
-            logging.warning(f"An exception occurred: {e.__class__.__name__}: {str(e)}")  # pylint: disable=W1203
-            errors.append(f"{e.__class__.__name__}: {str(e)}")
-            continue
-
-        # return the ai response
         logging.info("Message fetched successfully")
         return jsonify(
             {
-                # splitting is designed for behavior of llama2's conversation features, may not split correctly in some edge cases
-                "message": "".join(list(gpt_message))
-                .lower()
-                .split("user: ", 1)[0]
-                .replace("clyde: ", ""),
+                "message": gpt_message
                 "code": 0,
             }
         ), 200
 
-    # log the failure and quit fetching, send error back to the bot
-    logging.error(errors)
-    logging.error("Could not fetch message due to previously encountered issues")
-    return jsonify(
+    except Exception as e:
+        logging.error(f"{e.__class__.__name__}: {str(e)}")
+        return jsonify(
         {
-            "error": "Unable to fetch AI response. Possible reasons may include ratelimits, CAPTCHAs, or a broken provider.",
-            "errors": errors,
+            "error": str(e)
             "code": 1,
         }
     ), 500
-
 
 # run server at port 8001, debug mode to get hot-reloading without conflicts
 if __name__ == "__main__":
