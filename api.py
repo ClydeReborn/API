@@ -104,7 +104,7 @@ async def get_gpt():
         logging.info("Message fetched successfully")
         return jsonify(
             {
-                "message": gpt_message.split("\n\n")[-1]
+                "message": gpt_message.split("\n\n")[-1],
                 "code": 0,
             }
         ), 200
@@ -113,7 +113,7 @@ async def get_gpt():
         logging.error(f"{e.__class__.__name__}: {str(e)}")
         return jsonify(
         {
-            "error": str(e)
+            "error": str(e),
             "code": 1,
         }
     ), 500
