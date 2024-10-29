@@ -104,7 +104,7 @@ async def get_gpt():
         logging.info("Message fetched successfully")
         return jsonify(
             {
-                "message": gpt_message.splitlines()[-1],
+                "message": gpt_message.splitlines()[-1].replace("  ", "\n"),
                 "code": 0,
             }
         ), 200
