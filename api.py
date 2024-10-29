@@ -3,6 +3,7 @@ import sys
 import io
 import logging
 
+import google.generativeai as genai
 from google.generativeai import GenerativeModel
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
