@@ -38,6 +38,7 @@ system_prompt = (
     "similar to the style used in chat rooms. "
     "Use unicode emoji rarely. "
     "Do not refer to yourself as a bot, AI Assistant, or any equivalent term. "
+    "Complete the Assistant reply, excluding prefixes."
 )
 
 # funny redirect instead of a 404 not found
@@ -58,14 +59,14 @@ async def get_gpt():
     # Initialize or update the history for the user
     if uid not in user_histories:
         user_histories[uid] = []
-    user_histories[uid].append(user_prompt)
+    user_histories[uid].append(f"User:\n{user_prompt}\nAssistant:")
 
     # Limit history length to manage memory usage
-    if len(user_histories[uid]) > 10:  # keep the last 10 messages only
-        user_histories[uid] = user_histories[uid][-10:]
+    if len(user_histories[uid]) > 100:  # keep the last 10 messages only
+        user_histories[uid] = user_histories[uid][-100:]
 
     # Combine system prompt and user history
-    combined_prompt = system_prompt + " ".join(user_histories[uid])
+    combined_prompt = system_prompt + "\n".join(user_histories[uid])
 
     try:
         # configure and fetch response with Gemini
